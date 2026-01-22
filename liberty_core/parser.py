@@ -49,7 +49,12 @@ class Parser:
         if token.type == TokenType.COMMENT:
             self._advance()
             return CommentNode(text=token.value)
+        if token.type == TokenType.BLOCK_END:
+            self._advance()
+            return None
         if token.type == TokenType.IDENTIFIER:
+            if self._is_parenthesized_attribute():
+                return self._parse_parenthesized_attribute()
             if self._is_group_start():
                 return self._parse_group()
             if self._is_attribute_start():
@@ -75,14 +80,15 @@ class Parser:
         self._expect(TokenType.COLON)
         raw_tokens = self._collect_until(TokenType.SEMI)
         self._expect(TokenType.SEMI)
-        quote_style = QuoteStyle.NONE
-        for token in raw_tokens:
-            if token.type == TokenType.STRING:
-                quote_style = QuoteStyle.DOUBLE
-                break
-            if token.type in {TokenType.IDENTIFIER, TokenType.COMMA}:
-                break
-        return AttributeNode(key=key_token.value, raw_tokens=raw_tokens, quote_style=quote_style)
+        return self._build_attribute_node(key_token.value, raw_tokens, use_parens=False)
+
+    def _parse_parenthesized_attribute(self) -> AttributeNode:
+        key_token = self._expect(TokenType.IDENTIFIER)
+        self._expect(TokenType.GROUP_START)
+        raw_tokens = self._collect_until(TokenType.GROUP_END)
+        self._expect(TokenType.GROUP_END)
+        self._expect(TokenType.SEMI)
+        return self._build_attribute_node(key_token.value, raw_tokens, use_parens=True)
 
     def _collect_until(self, token_type: TokenType) -> List[Token]:
         collected: List[Token] = []
@@ -131,6 +137,17 @@ class Parser:
     def _is_attribute_start(self) -> bool:
         return self._peek_type(1) == TokenType.COLON
 
+    def _is_parenthesized_attribute(self) -> bool:
+        if self._peek_type(1) != TokenType.GROUP_START:
+            return False
+        group_end_index = self._find_group_end_index(self.index + 1)
+        if group_end_index is None:
+            return False
+        next_index = group_end_index + 1
+        if next_index >= len(self.tokens):
+            return False
+        return self.tokens[next_index].type == TokenType.SEMI
+
     def _expect(self, token_type: TokenType) -> Token:
         token = self._peek()
         if token is None or token.type != token_type:
@@ -153,6 +170,28 @@ class Parser:
         if position >= len(self.tokens):
             return None
         return self.tokens[position].type
+
+    def _find_group_end_index(self, start_index: int) -> Optional[int]:
+        depth = 0
+        for index in range(start_index, len(self.tokens)):
+            token_type = self.tokens[index].type
+            if token_type == TokenType.GROUP_START:
+                depth += 1
+            elif token_type == TokenType.GROUP_END:
+                depth -= 1
+                if depth == 0:
+                    return index
+        return None
+
+    def _build_attribute_node(self, key: str, raw_tokens: List[Token], use_parens: bool) -> AttributeNode:
+        quote_style = QuoteStyle.NONE
+        for token in raw_tokens:
+            if token.type == TokenType.STRING:
+                quote_style = QuoteStyle.DOUBLE
+                break
+            if token.type in {TokenType.IDENTIFIER, TokenType.COMMA}:
+                break
+        return AttributeNode(key=key, raw_tokens=raw_tokens, quote_style=quote_style, use_parens=use_parens)
 
     def _advance(self) -> None:
         self.index += 1

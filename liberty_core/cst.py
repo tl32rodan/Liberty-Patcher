@@ -31,6 +31,7 @@ class AttributeNode(CSTNode):
     key: str = ""
     raw_tokens: List["Token"] = field(default_factory=list)
     quote_style: QuoteStyle = QuoteStyle.NONE
+    use_parens: bool = False
 
 
 @dataclass

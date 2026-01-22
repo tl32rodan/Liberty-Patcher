@@ -40,6 +40,8 @@ class Formatter:
         value = self._tokens_to_value(node.raw_tokens)
         if node.quote_style == QuoteStyle.DOUBLE:
             value = f"\"{value}\""
+        if node.use_parens:
+            return [f"{self._indent(indent)}{node.key} ({value});"]
         return [f"{self._indent(indent)}{node.key} : {value};"]
 
     def _format_values_attribute(self, node: AttributeNode, indent: int) -> List[str]:
