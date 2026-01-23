@@ -52,11 +52,11 @@ class Formatter:
         matrix = self._parse_values(node.raw_tokens, rows, cols)
         formatted_rows = self._align_matrix(matrix)
         lines: List[str] = []
-        header = f"{self._indent(indent)}{node.key} : {formatted_rows[0]}"
+        header = f"{self._indent(indent)}{node.key} ( {formatted_rows[0]}"
         lines.append(header)
         for row in formatted_rows[1:]:
             lines.append(f"{self._indent(indent)}{' ' * (len(node.key) + 3)}{row}")
-        lines[-1] = lines[-1] + ";"
+        lines[-1] = lines[-1] + ");"
         return lines
 
     def _parse_values(self, tokens: List[Token], rows: int, cols: int) -> List[List[float]]:

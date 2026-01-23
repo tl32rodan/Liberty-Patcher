@@ -4,6 +4,7 @@ import argparse
 import json
 from pathlib import Path
 
+import config_compiler
 from liberty_core import Formatter, Parser
 from patch_engine import PatchRunner
 from provenance import ProvenanceDB
@@ -48,7 +49,7 @@ def _handle_format(args: argparse.Namespace) -> int:
 def _handle_patch(args: argparse.Namespace) -> int:
     text = _read_text(args.input)
     parse_result = Parser().parse(text)
-    config = json.loads(_read_text(args.config))
+    config = _load_config(args.config)
     provenance_db = ProvenanceDB(args.db) if args.db else None
     runner = PatchRunner(provenance_db=provenance_db)
     runner.run(parse_result, config)
@@ -56,6 +57,14 @@ def _handle_patch(args: argparse.Namespace) -> int:
     _write_text(args.output, output_text)
     runner.log_run(config, args.description, text, output_text, args.output)
     return 0
+
+
+def _load_config(path: str) -> dict:
+    config_text = _read_text(path)
+    suffix = Path(path).suffix.lower()
+    if suffix in {".yaml", ".yml"}:
+        return config_compiler.compile_config(config_text)
+    return json.loads(config_text)
 
 
 def main() -> int:

@@ -22,11 +22,11 @@ class TestPatchEngine(unittest.TestCase):
             validate_units({"time_unit": "2ns"}, expectations)
 
     def test_parse_values_tokens(self) -> None:
-        text = 'values : "1,2" \\\n "3,4";'
+        text = 'values ( "1,2" \\\n "3,4" );'
         tokens = Lexer(text).tokenize()
-        colon_index = next(index for index, token in enumerate(tokens) if token.type == TokenType.COLON)
-        semi_index = next(index for index, token in enumerate(tokens) if token.type == TokenType.SEMI)
-        values_tokens = tokens[colon_index + 1 : semi_index]
+        start_index = next(index for index, token in enumerate(tokens) if token.type == TokenType.GROUP_START)
+        end_index = next(index for index, token in enumerate(tokens) if token.type == TokenType.GROUP_END)
+        values_tokens = tokens[start_index + 1 : end_index]
         matrix = parse_values_tokens(values_tokens, rows=2, cols=2)
         self.assertEqual(matrix, [[1.0, 2.0], [3.0, 4.0]])
 

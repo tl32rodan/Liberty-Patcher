@@ -26,7 +26,14 @@ class TestPatchRunnerE2E(unittest.TestCase):
         config = {
             "modifications": [
                 {
-                    "scope": {"cells": ["AND*"], "metric": "timing"},
+                    "scope": {
+                        "path": [
+                            {"group": "library"},
+                            {"group": "cell", "name": "AND*"},
+                            {"group": "pin", "name": "*"},
+                            {"group": "timing"},
+                        ]
+                    },
                     "action": {"operation": "multiply", "mode": "broadcast", "value": 1.1},
                 }
             ]
@@ -63,7 +70,17 @@ def _find_cell_group(root: RootNode, cell_name: str) -> Optional[GroupNode]:
 
 
 def _extract_first_timing_matrix(root: RootNode, cell_name: str) -> Optional[List[List[float]]]:
-    timing_groups = find_nodes_by_scope(root, {"cells": [cell_name], "metric": "timing"})
+    timing_groups = find_nodes_by_scope(
+        root,
+        {
+            "path": [
+                {"group": "library"},
+                {"group": "cell", "name": cell_name},
+                {"group": "pin", "name": "*"},
+                {"group": "timing"},
+            ]
+        },
+    )
     for group in timing_groups:
         for owner, values_attr in _iter_attribute_nodes(group, "values"):
             rows, cols = _resolve_matrix_shape(owner, values_attr.raw_tokens)

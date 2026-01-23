@@ -21,7 +21,7 @@ class TestLexer(unittest.TestCase):
         )
 
     def test_lexes_comments_and_escaped_newline(self) -> None:
-        text = 'values : "1,2" \\\n "3,4"; // trailing'
+        text = 'values ( "1,2" \\\n "3,4" ); // trailing'
         tokens = Lexer(text).tokenize()
         token_types = [token.type for token in tokens]
         self.assertIn(TokenType.ESCAPED_NEWLINE, token_types)
