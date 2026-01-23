@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from fnmatch import fnmatch
-from typing import Iterable, List, Optional
+from typing import Iterable, List, Sequence, Union
 
 from liberty_core.cst import AttributeNode, GroupNode, RootNode, Token, TokenType
 
@@ -19,55 +19,16 @@ def find_groups_by_name(root: GroupNode, group_name: str) -> List[GroupNode]:
     return matches
 
 
-def filter_cells_by_pattern(library_group: GroupNode, patterns: List[str]) -> List[GroupNode]:
-    cells = [child for child in library_group.children if isinstance(child, GroupNode) and child.name == "cell"]
-    matched: List[GroupNode] = []
-    for cell in cells:
-        if not cell.args_tokens:
-            continue
-        cell_name = cell.args_tokens[0].value
-        if any(fnmatch(cell_name, pattern) for pattern in patterns):
-            matched.append(cell)
-    return matched
-
-
 def find_nodes_by_scope(root: RootNode, scope: dict) -> List[GroupNode]:
-    library_group = _find_library_group(root)
-    if library_group is None:
+    path = scope.get("path", [])
+    if not path:
         return []
-    cell_patterns = scope.get("cells")
-    if cell_patterns:
-        cells = filter_cells_by_pattern(library_group, cell_patterns)
-    else:
-        cells = [
-            child
-            for child in library_group.children
-            if isinstance(child, GroupNode) and child.name == "cell"
-        ]
-    pin_patterns = scope.get("pins")
-    metric = scope.get("metric")
-    direction = scope.get("direction")
-    attribute_filters = {
-        key: value
-        for key, value in scope.items()
-        if key not in {"cells", "pins", "metric", "direction"} and value is not None
-    }
-    matched_groups: List[GroupNode] = []
-    for cell in cells:
-        pins = _find_child_groups(cell, "pin")
-        if pin_patterns:
-            pins = [pin for pin in pins if _group_args_match(pin, pin_patterns)]
-        for pin in pins:
-            groups = [child for child in pin.children if isinstance(child, GroupNode)]
-            if metric:
-                groups = [group for group in groups if group.name == metric]
-            for group in groups:
-                if direction and not _matches_direction(group, direction):
-                    continue
-                if attribute_filters and not _matches_attributes(group, attribute_filters):
-                    continue
-                matched_groups.append(group)
-    return matched_groups
+    current: List[Union[RootNode, GroupNode]] = [root]
+    for selector in path:
+        current = _select_child_groups(current, selector)
+        if not current:
+            return []
+    return [node for node in current if isinstance(node, GroupNode)]
 
 
 def group_has_attribute(group: GroupNode, key: str, value_pattern: str) -> bool:
@@ -79,30 +40,48 @@ def group_has_attribute(group: GroupNode, key: str, value_pattern: str) -> bool:
     return False
 
 
-def _find_library_group(root: RootNode) -> Optional[GroupNode]:
-    for child in root.children:
-        if isinstance(child, GroupNode) and child.name == "library":
-            return child
-    return None
+def _select_child_groups(
+    nodes: Sequence[Union[RootNode, GroupNode]],
+    selector: dict,
+) -> List[GroupNode]:
+    matched: List[GroupNode] = []
+    for node in nodes:
+        children = _iter_child_groups(node)
+        for child in children:
+            if _matches_selector(child, selector):
+                matched.append(child)
+    return matched
 
 
-def _find_child_groups(node: GroupNode, name: str) -> List[GroupNode]:
-    return [child for child in node.children if isinstance(child, GroupNode) and child.name == name]
+def _matches_selector(node: GroupNode, selector: dict) -> bool:
+    group_pattern = selector.get("group")
+    if group_pattern and not fnmatch(node.name, group_pattern):
+        return False
+    name_pattern = selector.get("name")
+    if name_pattern and not _group_name_match(node, name_pattern):
+        return False
+    args_pattern = selector.get("args")
+    if args_pattern and not _group_args_match(node, args_pattern):
+        return False
+    attributes = selector.get("attributes")
+    if attributes and not _matches_attributes(node, attributes):
+        return False
+    return True
 
 
-def _group_args_match(node: GroupNode, patterns: Iterable[str]) -> bool:
+def _group_name_match(node: GroupNode, pattern: str) -> bool:
     if not node.args_tokens:
         return False
-    value = node.args_tokens[0].value
+    return fnmatch(node.args_tokens[0].value, pattern)
+
+
+def _group_args_match(node: GroupNode, patterns: Union[str, Iterable[str]]) -> bool:
+    if not node.args_tokens:
+        return False
+    value = _tokens_to_value(node.args_tokens)
+    if isinstance(patterns, str):
+        patterns = [patterns]
     return any(fnmatch(value, pattern) for pattern in patterns)
-
-
-def _matches_direction(group: GroupNode, direction: str) -> bool:
-    pattern = f"*{direction}*"
-    return any(
-        group_has_attribute(group, key, pattern)
-        for key in ("timing_type", "timing_sense", "related_pin")
-    )
 
 
 def _matches_attributes(group: GroupNode, filters: dict) -> bool:
@@ -114,6 +93,12 @@ def _matches_attributes(group: GroupNode, filters: dict) -> bool:
         if not group_has_attribute(group, key, value):
             return False
     return True
+
+
+def _iter_child_groups(node: Union[RootNode, GroupNode]) -> List[GroupNode]:
+    if isinstance(node, RootNode):
+        return [child for child in node.children if isinstance(child, GroupNode)]
+    return [child for child in node.children if isinstance(child, GroupNode)]
 
 
 def _tokens_to_value(tokens: Iterable[Token]) -> str:

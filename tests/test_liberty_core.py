@@ -6,7 +6,7 @@ from liberty_core.cst import TokenType
 
 class TestLibertyCore(unittest.TestCase):
     def test_lexer_emits_escaped_newline(self) -> None:
-        text = 'values : "1,2" \\\n "3,4";'
+        text = 'values ( "1,2" \\\n "3,4" );'
         tokens = Lexer(text).tokenize()
         token_types = [token.type for token in tokens]
         self.assertIn(TokenType.ESCAPED_NEWLINE, token_types)
@@ -25,10 +25,10 @@ class TestLibertyCore(unittest.TestCase):
             'cell(A) {\n'
             '  index_1 : "0.1, 0.2";\n'
             '  index_2 : "1, 2";\n'
-            '  values : "1,2" \\\n "3,4";\n'
+            '  values ( "1,2" \\\n "3,4" );\n'
             '}\n'
         )
         result = Parser().parse(text)
         output = Formatter().dump(result.root)
-        self.assertIn('values : "1, 2" \\', output)
-        self.assertIn('"3, 4";', output)
+        self.assertIn('values ( "1, 2" \\', output)
+        self.assertIn('"3, 4");', output)

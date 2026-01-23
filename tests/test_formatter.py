@@ -16,10 +16,10 @@ class TestFormatter(unittest.TestCase):
             "cell(A) {\n"
             "  index_1 : 0.1, 0.2;\n"
             "  index_2 : 1, 2;\n"
-            "  values : 1,2,3,4;\n"
+            "  values ( 1,2,3,4 );\n"
             "}\n"
         )
         result = Parser().parse(text)
         output = Formatter().dump(result.root)
-        self.assertIn('values : "1, 2" \\', output)
-        self.assertIn('"3, 4";', output)
+        self.assertIn('values ( "1, 2" \\', output)
+        self.assertIn('"3, 4");', output)

@@ -1,0 +1,11 @@
+modifications:
+  - scope:
+      path:
+        - library: "*"
+        - cell: "AND*"
+        - pin: "*"
+        - group: "timing"
+    action:
+      operation: multiply
+      mode: broadcast
+      value: 1.1
