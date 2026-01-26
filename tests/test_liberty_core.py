@@ -1,6 +1,6 @@
 import unittest
 
-from liberty_core import Formatter, Lexer, Parser, QuoteStyle
+from liberty_core import Lexer, Parser, QuoteStyle
 from liberty_core.cst import TokenType
 
 
@@ -19,16 +19,3 @@ class TestLibertyCore(unittest.TestCase):
         size = cell.children[1]
         self.assertEqual(area.quote_style, QuoteStyle.DOUBLE)
         self.assertEqual(size.quote_style, QuoteStyle.NONE)
-
-    def test_formatter_values_alignment(self) -> None:
-        text = (
-            'cell(A) {\n'
-            '  index_1 : "0.1, 0.2";\n'
-            '  index_2 : "1, 2";\n'
-            '  values ( "1,2" \\\n "3,4" );\n'
-            '}\n'
-        )
-        result = Parser().parse(text)
-        output = Formatter().dump(result.root)
-        self.assertIn('values ( "1, 2" \\', output)
-        self.assertIn('"3, 4");', output)

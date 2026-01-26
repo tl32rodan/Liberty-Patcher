@@ -9,7 +9,7 @@ from liberty_core.cst import AttributeNode, GroupNode, Token, TokenType
 from liberty_core.parser import ParseResult
 from provenance import ArtifactRecord, BatchOp, ProvenanceDB
 
-from .matrix import add_matrices, multiply_matrix, parse_values_tokens
+from .matrix import add_matrices, multiply_matrix, parse_array_tokens
 from .scope import find_nodes_by_scope
 from .units import UnitExpectations, validate_units
 
@@ -76,11 +76,10 @@ class PatchRunner:
         )
 
     def _apply_action(self, group: GroupNode, attribute: str, action: dict) -> None:
-        for owner, node in _iter_attribute_nodes(group, attribute):
-            rows, cols = _resolve_matrix_shape(owner, node.raw_tokens)
-            matrix = parse_values_tokens(node.raw_tokens, rows, cols)
+        for _, node in _iter_attribute_nodes(group, attribute):
+            matrix = parse_array_tokens(node.raw_tokens)
             updated = _apply_operation(matrix, action)
-            node.raw_tokens = _matrix_to_tokens(updated)
+            node.raw_tokens = _matrix_to_tokens(updated, _array_uses_quotes(node.raw_tokens))
 
 
 def _apply_operation(matrix: List[List[float]], action: dict) -> List[List[float]]:
@@ -106,37 +105,6 @@ def _apply_operation(matrix: List[List[float]], action: dict) -> List[List[float
     raise PatchActionError(f"Unsupported operation: {operation}")
 
 
-def _resolve_matrix_shape(group: GroupNode, values_tokens: Iterable[Token]) -> tuple[int, int]:
-    index_1 = _find_index_values(group, "index_1")
-    index_2 = _find_index_values(group, "index_2")
-    if index_1 and index_2:
-        return len(index_1), len(index_2)
-    if index_1:
-        return 1, len(index_1)
-    flat_values = _parse_index_tokens(values_tokens)
-    return 1, len(flat_values)
-
-
-def _find_index_values(group: GroupNode, key: str) -> Optional[List[float]]:
-    for child in group.children:
-        if isinstance(child, AttributeNode) and child.key == key:
-            return _parse_index_tokens(child.raw_tokens)
-    return None
-
-
-def _parse_index_tokens(tokens: Iterable[Token]) -> List[float]:
-    values: List[float] = []
-    for token in tokens:
-        if token.type in {TokenType.COMMENT, TokenType.ESCAPED_NEWLINE}:
-            continue
-        if token.type in {TokenType.STRING, TokenType.IDENTIFIER}:
-            for part in token.value.split(","):
-                stripped = part.strip()
-                if stripped:
-                    values.append(float(stripped))
-    return values
-
-
 def _normalize_matrix(value: object) -> List[List[float]]:
     if not isinstance(value, list):
         raise PatchActionError("Matrix value must be a list.")
@@ -148,12 +116,22 @@ def _normalize_matrix(value: object) -> List[List[float]]:
     return matrix
 
 
-def _matrix_to_tokens(matrix: Iterable[Iterable[float]]) -> List[Token]:
+def _matrix_to_tokens(matrix: Iterable[Iterable[float]], quoted: bool) -> List[Token]:
     tokens: List[Token] = []
+    row_count = 0
     for row in matrix:
         row_values = ",".join(format(value, "g") for value in row)
-        tokens.append(Token(TokenType.STRING, row_values, 0, 0))
+        token_type = TokenType.STRING if quoted else TokenType.IDENTIFIER
+        tokens.append(Token(token_type, row_values, 0, 0))
+        row_count += 1
+        tokens.append(Token(TokenType.ESCAPED_NEWLINE, "\\\n", 0, 0))
+    if row_count > 0:
+        tokens.pop()
     return tokens
+
+
+def _array_uses_quotes(tokens: Iterable[Token]) -> bool:
+    return any(token.type == TokenType.STRING for token in tokens)
 
 
 def _iter_attribute_nodes(group: GroupNode, key: str) -> Iterable[tuple[GroupNode, AttributeNode]]:
