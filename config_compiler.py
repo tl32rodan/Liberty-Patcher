@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from typing import Any, Dict
+import json
+from pathlib import Path
+from typing import Any, Dict, Optional
 
 try:
     import yaml
@@ -12,12 +14,12 @@ class ConfigCompilerError(ValueError):
     pass
 
 
-def compile_config(yaml_text: str) -> dict:
+def compile_config(yaml_text: str, export_json_path: Optional[str] = None) -> dict:
     data = _load_yaml(yaml_text)
-    return compile_config_data(data)
+    return compile_config_data(data, export_json_path=export_json_path)
 
 
-def compile_config_data(data: dict) -> dict:
+def compile_config_data(data: dict, export_json_path: Optional[str] = None) -> dict:
     if not isinstance(data, dict):
         raise ConfigCompilerError("Config root must be a mapping.")
     modifications = data.get("modifications", [])
@@ -33,6 +35,8 @@ def compile_config_data(data: dict) -> dict:
         compiled_mods.append(compiled)
     compiled_config = dict(data)
     compiled_config["modifications"] = compiled_mods
+    if export_json_path:
+        _export_compiled_json(compiled_config, export_json_path)
     return compiled_config
 
 
@@ -90,3 +94,8 @@ def _normalize_attributes(selector: Dict[str, Any]) -> Dict[str, Any]:
         selector = dict(selector)
         selector["attributes"] = selector.pop("attrs")
     return selector
+
+
+def _export_compiled_json(config: dict, path: str) -> None:
+    output_path = Path(path)
+    output_path.write_text(json.dumps(config, indent=2, ensure_ascii=False), encoding="utf-8")

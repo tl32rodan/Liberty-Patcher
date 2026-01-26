@@ -58,6 +58,53 @@ class TestPatchRunnerE2E(unittest.TestCase):
             self.assertEqual(batch_count, 1)
             self.assertEqual(artifact_count, 1)
 
+    def test_internal_power_when_related_pg_pin_patch(self) -> None:
+        input_path = Path("examples/asap7sc6t_SIMPLE_SLVT_TT_nldm_211010.lib")
+        text = input_path.read_text(encoding="utf-8")
+        parse_result = Parser().parse(text)
+
+        before_matrix = _extract_internal_power_fall_matrix(
+            parse_result.root,
+            cell_name="AND3x1_ASAP7_6t_SL",
+            pin_name="A",
+            when="(B * !C * !Y)",
+            related_pg_pin="VDD",
+        )
+        self.assertIsNotNone(before_matrix)
+
+        config = {
+            "modifications": [
+                {
+                    "scope": {
+                        "path": [
+                            {"group": "library"},
+                            {"group": "cell", "name": "AND3x1_ASAP7_6t_SL"},
+                            {"group": "pin", "name": "A"},
+                            {
+                                "group": "internal_power",
+                                "attributes": {"when": "(B * !C * !Y)", "related_pg_pin": "VDD"},
+                            },
+                            {"group": "fall_power"},
+                        ]
+                    },
+                    "action": {"operation": "add", "mode": "broadcast", "value": 0.01},
+                }
+            ]
+        }
+
+        runner = PatchRunner()
+        runner.run(parse_result, config)
+
+        after_matrix = _extract_internal_power_fall_matrix(
+            parse_result.root,
+            cell_name="AND3x1_ASAP7_6t_SL",
+            pin_name="A",
+            when="(B * !C * !Y)",
+            related_pg_pin="VDD",
+        )
+        self.assertIsNotNone(after_matrix)
+        _assert_offset_matrix(self, before_matrix, after_matrix, 0.01)
+
 
 def _find_cell_group(root: RootNode, cell_name: str) -> Optional[GroupNode]:
     for child in root.children:
@@ -98,6 +145,44 @@ def _assert_scaled_matrix(
         test_case.assertEqual(len(before_row), len(after_row))
         for before_value, after_value in zip(before_row, after_row):
             test_case.assertAlmostEqual(after_value, before_value * scale, places=3)
+
+
+def _assert_offset_matrix(
+    test_case: unittest.TestCase,
+    before: List[List[float]],
+    after: List[List[float]],
+    offset: float,
+) -> None:
+    test_case.assertEqual(len(before), len(after))
+    for before_row, after_row in zip(before, after):
+        test_case.assertEqual(len(before_row), len(after_row))
+        for before_value, after_value in zip(before_row, after_row):
+            test_case.assertAlmostEqual(after_value, before_value + offset, places=3)
+
+
+def _extract_internal_power_fall_matrix(
+    root: RootNode,
+    cell_name: str,
+    pin_name: str,
+    when: str,
+    related_pg_pin: str,
+) -> Optional[List[List[float]]]:
+    fall_groups = find_nodes_by_scope(
+        root,
+        {
+            "path": [
+                {"group": "library"},
+                {"group": "cell", "name": cell_name},
+                {"group": "pin", "name": pin_name},
+                {"group": "internal_power", "attributes": {"when": when, "related_pg_pin": related_pg_pin}},
+                {"group": "fall_power"},
+            ]
+        },
+    )
+    for group in fall_groups:
+        for _, values_attr in _iter_attribute_nodes(group, "values"):
+            return parse_array_tokens(values_attr.raw_tokens)
+    return None
 
 
 def _iter_attribute_nodes(group: GroupNode, key: str) -> Iterable[tuple[GroupNode, AttributeNode]]:

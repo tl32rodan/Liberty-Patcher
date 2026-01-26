@@ -9,7 +9,7 @@ from liberty_core.cst import AttributeNode, GroupNode, Token, TokenType
 from liberty_core.parser import ParseResult
 from provenance import ArtifactRecord, BatchOp, ProvenanceDB
 
-from .matrix import add_matrices, multiply_matrix, parse_array_tokens
+from .matrix import add_matrices, extract_array_layout, multiply_matrix, parse_array_tokens
 from .scope import find_nodes_by_scope
 from .units import UnitExpectations, validate_units
 
@@ -38,7 +38,7 @@ class PatchRunner:
             scope = modification.get("scope", {})
             action = modification.get("action", {})
             attribute = action.get("attribute", "values")
-            groups = find_nodes_by_scope(parse_result.root, scope)
+            groups = find_nodes_by_scope(parse_result.root, scope, require_match=True)
             for group in groups:
                 self._apply_action(group, attribute, action)
                 modified_groups += 1
@@ -77,9 +77,10 @@ class PatchRunner:
 
     def _apply_action(self, group: GroupNode, attribute: str, action: dict) -> None:
         for _, node in _iter_attribute_nodes(group, attribute):
+            layout = extract_array_layout(node.raw_tokens)
             matrix = parse_array_tokens(node.raw_tokens)
             updated = _apply_operation(matrix, action)
-            node.raw_tokens = _matrix_to_tokens(updated, _array_uses_quotes(node.raw_tokens))
+            node.raw_tokens = _matrix_to_tokens(updated, _array_uses_quotes(node.raw_tokens), layout)
 
 
 def _apply_operation(matrix: List[List[float]], action: dict) -> List[List[float]]:
@@ -116,13 +117,28 @@ def _normalize_matrix(value: object) -> List[List[float]]:
     return matrix
 
 
-def _matrix_to_tokens(matrix: Iterable[Iterable[float]], quoted: bool) -> List[Token]:
+def _matrix_to_tokens(
+    matrix: Iterable[Iterable[float]],
+    quoted: bool,
+    layout: Optional[List[List[int]]] = None,
+) -> List[Token]:
     tokens: List[Token] = []
     row_count = 0
-    for row in matrix:
-        row_values = ",".join(format(value, "g") for value in row)
+    matrix_list = [list(row) for row in matrix]
+    for row_index, row in enumerate(matrix_list):
         token_type = TokenType.STRING if quoted else TokenType.IDENTIFIER
-        tokens.append(Token(token_type, row_values, 0, 0))
+        row_layout = None
+        if layout is not None and row_index < len(layout):
+            row_layout = layout[row_index]
+        if row_layout and sum(row_layout) == len(row):
+            position = 0
+            for count in row_layout:
+                segment_values = ",".join(format(value, "g") for value in row[position : position + count])
+                tokens.append(Token(token_type, segment_values, 0, 0))
+                position += count
+        else:
+            row_values = ",".join(format(value, "g") for value in row)
+            tokens.append(Token(token_type, row_values, 0, 0))
         row_count += 1
         tokens.append(Token(TokenType.ESCAPED_NEWLINE, "\\\n", 0, 0))
     if row_count > 0:

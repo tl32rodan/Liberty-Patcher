@@ -12,6 +12,7 @@ from .cst import (
 from .formatter import Formatter
 from .lexer import Lexer, LexerError
 from .parser import ParseResult, Parser, ParserError
+from .serialize import dump_parse_result, serialize_parse_result
 
 __all__ = [
     "AttributeNode",
@@ -29,4 +30,6 @@ __all__ = [
     "RootNode",
     "Token",
     "TokenType",
+    "dump_parse_result",
+    "serialize_parse_result",
 ]
