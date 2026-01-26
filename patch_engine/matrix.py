@@ -45,6 +45,28 @@ def parse_array_tokens(tokens: Iterable[Token]) -> List[List[float]]:
     return rows
 
 
+def extract_array_layout(tokens: Iterable[Token]) -> List[List[int]]:
+    rows: List[List[int]] = []
+    current: List[int] = []
+    for token in tokens:
+        if token.type == TokenType.ESCAPED_NEWLINE:
+            if current:
+                rows.append(current)
+                current = []
+            continue
+        if token.type == TokenType.COMMENT:
+            continue
+        if token.type in {TokenType.STRING, TokenType.IDENTIFIER}:
+            segments = [segment for segment in token.value.split(",") if segment.strip()]
+            current.append(len(segments))
+            continue
+        if token.type == TokenType.COMMA:
+            continue
+    if current:
+        rows.append(current)
+    return rows
+
+
 def _parse_numeric_tokens(tokens: Iterable[Token]) -> List[float]:
     values: List[float] = []
     for token in tokens:

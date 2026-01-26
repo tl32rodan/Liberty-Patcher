@@ -83,6 +83,23 @@ python cli.py patch \
     --description "Fix hold time violation for ASAP7"
 ```
 
+Compile YAML configs into expanded JSON (useful for downstream runners that only consume JSON):
+
+```bash
+python cli.py compile-config \
+    --input examples/patch_demo.yaml \
+    --output compiled_patch.json
+```
+
+Both `format` and `patch` can also dump the parsed CST for inspection:
+
+```bash
+python cli.py format \
+    --input examples/asap7sc6t_SIMPLE_SLVT_TT_nldm_211010.lib \
+    --output normalized.lib \
+    --dump-parse parsed_cst.json
+```
+
 ---
 
 ## 2. Enhancement: `patch_engine/runner.py` (The Glue Logic)
@@ -151,6 +168,17 @@ python cli.py patch \
 - Check if its timing tables are exactly 1.1x larger.
 - Check if the output file format is valid (parseable again).
 - Check if DB record is created.
+
+---
+
+## Patch Demo Configuration
+
+`examples/patch_demo.yaml` includes:
+
+- **2D add** on timing tables for `AND*` cells.
+- **1D add** on `internal_power` → `rise_power` values for `AND3x1_ASAP7_6t_SL`.
+- **Conditional internal_power edit** scoped by `when` and `related_pg_pin` to modify
+  `fall_power` values only when `when == "(B * !C * !Y)"` and `related_pg_pin == "VDD"`.
 
 ---
 

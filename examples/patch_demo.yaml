@@ -1,4 +1,5 @@
 modifications:
+  # 2D add (timing values)
   - scope:
       path:
         - library: "*"
@@ -6,6 +7,54 @@ modifications:
         - pin: "*"
         - group: "timing"
     action:
-      operation: multiply
+      operation: add
       mode: broadcast
-      value: 1.1
+      value: 0.05
+  # 1D add (internal_power rise_power values)
+  - scope:
+      path:
+        - library: "*"
+        - cell: "AND3x1_ASAP7_6t_SL"
+        - pin: "A"
+        - group: "internal_power"
+        - group: "rise_power"
+    action:
+      operation: add
+      mode: broadcast
+      value: -0.01
+  # Conditional internal_power fall_power example
+  - scope:
+      path:
+        - library: "*"
+        - cell: "AND3x1_ASAP7_6t_SL"
+        - pin: "A"
+        - group: "internal_power"
+          attributes:
+            when: "(B * !C * !Y)"
+            related_pg_pin: "VDD"
+        - group: "fall_power"
+    action:
+      operation: add
+      mode: broadcast
+      value: 0.01
+  # Element-wise add (timing cell_fall values with related_pin filter)
+  - scope:
+      path:
+        - library: "*"
+        - cell: "AND2x2_ASAP7_6t_SL"
+        - pin: "Y"
+        - group: "timing"
+          attributes:
+            related_pin: "A"
+        - group: "cell_fall"
+    action:
+      operation: add
+      mode: matrix
+      value:
+        - [0.01, 0, 0, 0, 0, 0, 0]
+        - [0, 0.01, 0, 0, 0, 0, 0]
+        - [0, 0, 0.01, 0, 0, 0, 0]
+        - [0, 0, 0, 0.01, 0, 0, 0]
+        - [0, 0, 0, 0, 0.01, 0, 0]
+        - [0, 0, 0, 0, 0, 0.01, 0]
+        - [0, 0, 0, 0, 0, 0, 0.01]
