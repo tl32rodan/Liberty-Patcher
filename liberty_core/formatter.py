@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import Iterable, List, Optional
+from dataclasses import dataclass
+from typing import Iterable, List
 
 from .cst import AttributeNode, CommentNode, GroupNode, QuoteStyle, RootNode, Token, TokenType
 
@@ -35,8 +36,8 @@ class Formatter:
         return lines
 
     def _format_attribute(self, node: AttributeNode, indent: int) -> List[str]:
-        if node.key == "values":
-            return self._format_values_attribute(node, indent)
+        if node.use_parens and self._is_array_tokens(node.raw_tokens):
+            return self._format_array_attribute(node, indent)
         value = self._tokens_to_value(node.raw_tokens)
         if node.quote_style == QuoteStyle.DOUBLE:
             value = f"\"{value}\""
@@ -44,84 +45,98 @@ class Formatter:
             return [f"{self._indent(indent)}{node.key} ({value});"]
         return [f"{self._indent(indent)}{node.key} : {value};"]
 
-    def _format_values_attribute(self, node: AttributeNode, indent: int) -> List[str]:
-        group = node.parent if isinstance(node.parent, GroupNode) else None
-        index_1 = self._find_index_values(group, "index_1")
-        index_2 = self._find_index_values(group, "index_2")
-        rows, cols = self._resolve_matrix_shape(index_1, index_2, node.raw_tokens)
-        matrix = self._parse_values(node.raw_tokens, rows, cols)
-        formatted_rows = self._align_matrix(matrix)
-        lines: List[str] = []
-        header = f"{self._indent(indent)}{node.key} ( {formatted_rows[0]}"
+    def _format_array_attribute(self, node: AttributeNode, indent: int) -> List[str]:
+        rows = self._parse_array_matrix(node.raw_tokens)
+        formatted_rows = self._format_matrix_rows(rows)
+        if len(formatted_rows) == 1:
+            lines: List[str] = []
+            header = f"{self._indent(indent)}{node.key} ( {formatted_rows[0]}"
+            lines.append(header + ");")
+            return lines
+
+        lines = []
+        header = f"{self._indent(indent)}{node.key} ( \\"
         lines.append(header)
-        for row in formatted_rows[1:]:
-            lines.append(f"{self._indent(indent)}{' ' * (len(node.key) + 3)}{row}")
-        lines[-1] = lines[-1] + ");"
+        continuation_indent = f"{self._indent(indent + 1)}"
+        last_index = len(formatted_rows) - 1
+        for index, row in enumerate(formatted_rows):
+            comma = "," if index < last_index else ""
+            lines.append(f"{continuation_indent}{row}{comma} \\")
+        lines.append(f"{self._indent(indent)});")
         return lines
 
-    def _parse_values(self, tokens: List[Token], rows: int, cols: int) -> List[List[float]]:
-        flat: List[float] = []
+    def _parse_array_matrix(self, tokens: List[Token]) -> List["ArrayRow"]:
+        rows: List[ArrayRow] = []
+        current_row: List[Token] = []
         for token in tokens:
-            if token.type in {TokenType.COMMENT, TokenType.ESCAPED_NEWLINE}:
+            if token.type == TokenType.ESCAPED_NEWLINE:
+                if current_row:
+                    rows.append(self._parse_array_row(current_row))
+                    current_row = []
+                continue
+            if token.type == TokenType.COMMENT:
+                continue
+            current_row.append(token)
+        if current_row:
+            rows.append(self._parse_array_row(current_row))
+        return rows
+
+    def _parse_array_row(self, tokens: List[Token]) -> "ArrayRow":
+        values: List[float] = []
+        has_string = False
+        for token in tokens:
+            if token.type in {TokenType.COMMENT, TokenType.ESCAPED_NEWLINE, TokenType.COMMA}:
                 continue
             if token.type in {TokenType.STRING, TokenType.IDENTIFIER}:
+                if token.type == TokenType.STRING:
+                    has_string = True
                 for part in token.value.split(","):
                     stripped = part.strip()
                     if stripped:
-                        flat.append(float(stripped))
-                continue
-            if token.type == TokenType.COMMA:
-                continue
-        expected = rows * cols
-        if expected != len(flat):
-            raise ValueError(f"Values count {len(flat)} does not match expected shape {rows}x{cols}")
-        return [flat[row * cols : (row + 1) * cols] for row in range(rows)]
+                        values.append(float(stripped))
+        return ArrayRow(values=values, quoted=has_string)
 
-    def _align_matrix(self, matrix: List[List[float]]) -> List[str]:
-        formatted = [[format(value, self.float_format) for value in row] for row in matrix]
+    def _format_matrix_rows(self, rows: List["ArrayRow"]) -> List[str]:
+        formatted = [[format(value, self.float_format) for value in row.values] for row in rows]
         col_widths = [max(len(row[col]) for row in formatted) for col in range(len(formatted[0]))]
         lines: List[str] = []
         for row_index, row in enumerate(formatted):
             cells = [row[col].rjust(col_widths[col]) for col in range(len(row))]
             line = ", ".join(cells)
-            if row_index < len(formatted) - 1:
-                lines.append(f"\"{line}\" \\")
-            else:
+            if rows[row_index].quoted:
                 lines.append(f"\"{line}\"")
+            else:
+                lines.append(line)
         return lines
 
-    def _find_index_values(self, group: Optional[GroupNode], key: str) -> Optional[List[float]]:
-        if group is None:
-            return None
-        for child in group.children:
-            if isinstance(child, AttributeNode) and child.key == key:
-                return self._parse_index(child.raw_tokens)
-        return None
-
-    def _parse_index(self, tokens: List[Token]) -> List[float]:
-        values: List[float] = []
+    def _is_array_tokens(self, tokens: Iterable[Token]) -> bool:
+        has_separator = False
         for token in tokens:
             if token.type in {TokenType.COMMENT, TokenType.ESCAPED_NEWLINE}:
+                if token.type == TokenType.ESCAPED_NEWLINE:
+                    has_separator = True
                 continue
-            if token.type in {TokenType.STRING, TokenType.IDENTIFIER}:
-                for part in token.value.split(","):
-                    stripped = part.strip()
-                    if stripped:
-                        values.append(float(stripped))
-        return values
+            if token.type == TokenType.COMMA:
+                has_separator = True
+                continue
+            if token.type not in {TokenType.STRING, TokenType.IDENTIFIER}:
+                return False
+            if not self._token_is_numeric(token.value):
+                return False
+        return has_separator
 
-    def _resolve_matrix_shape(
-        self,
-        index_1: Optional[List[float]],
-        index_2: Optional[List[float]],
-        tokens: List[Token],
-    ) -> tuple[int, int]:
-        if index_1 and index_2:
-            return len(index_1), len(index_2)
-        if index_1:
-            return 1, len(index_1)
-        flat_count = len(self._parse_index(tokens))
-        return 1, flat_count
+    def _token_is_numeric(self, value: str) -> bool:
+        has_value = False
+        for part in value.split(","):
+            stripped = part.strip()
+            if not stripped:
+                continue
+            has_value = True
+            try:
+                float(stripped)
+            except ValueError:
+                return False
+        return has_value
 
     def _tokens_to_value(self, tokens: Iterable[Token]) -> str:
         pieces: List[str] = []
@@ -144,3 +159,9 @@ class Formatter:
 
     def _indent(self, indent: int) -> str:
         return " " * (indent * self.indent_size)
+
+
+@dataclass(frozen=True)
+class ArrayRow:
+    values: List[float]
+    quoted: bool

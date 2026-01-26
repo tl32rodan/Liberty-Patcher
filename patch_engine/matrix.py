@@ -28,6 +28,36 @@ def parse_values_tokens(tokens: Iterable[Token], rows: int, cols: int) -> List[L
     return [flat[row * cols : (row + 1) * cols] for row in range(rows)]
 
 
+def parse_array_tokens(tokens: Iterable[Token]) -> List[List[float]]:
+    rows: List[List[float]] = []
+    current: List[Token] = []
+    for token in tokens:
+        if token.type == TokenType.ESCAPED_NEWLINE:
+            if current:
+                rows.append(_parse_numeric_tokens(current))
+                current = []
+            continue
+        if token.type == TokenType.COMMENT:
+            continue
+        current.append(token)
+    if current:
+        rows.append(_parse_numeric_tokens(current))
+    return rows
+
+
+def _parse_numeric_tokens(tokens: Iterable[Token]) -> List[float]:
+    values: List[float] = []
+    for token in tokens:
+        if token.type in {TokenType.ESCAPED_NEWLINE, TokenType.COMMENT, TokenType.COMMA}:
+            continue
+        if token.type in {TokenType.STRING, TokenType.IDENTIFIER}:
+            for segment in token.value.split(","):
+                stripped = segment.strip()
+                if stripped:
+                    values.append(float(stripped))
+    return values
+
+
 def multiply_matrix(matrix: List[List[float]], scalar: float) -> List[List[float]]:
     return [[value * scalar for value in row] for row in matrix]
 

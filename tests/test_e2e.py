@@ -5,8 +5,8 @@ from pathlib import Path
 from typing import Iterable, List, Optional
 
 from liberty_core import Formatter, Parser
-from liberty_core.cst import AttributeNode, GroupNode, RootNode, Token, TokenType
-from patch_engine import PatchRunner, find_nodes_by_scope, parse_values_tokens
+from liberty_core.cst import AttributeNode, GroupNode, RootNode
+from patch_engine import PatchRunner, find_nodes_by_scope, parse_array_tokens
 from provenance import ProvenanceDB
 
 
@@ -83,40 +83,8 @@ def _extract_first_timing_matrix(root: RootNode, cell_name: str) -> Optional[Lis
     )
     for group in timing_groups:
         for owner, values_attr in _iter_attribute_nodes(group, "values"):
-            rows, cols = _resolve_matrix_shape(owner, values_attr.raw_tokens)
-            return parse_values_tokens(values_attr.raw_tokens, rows, cols)
+            return parse_array_tokens(values_attr.raw_tokens)
     return None
-
-
-def _resolve_matrix_shape(group: GroupNode, values_tokens: Iterable[Token]) -> tuple[int, int]:
-    index_1 = _find_index_values(group, "index_1")
-    index_2 = _find_index_values(group, "index_2")
-    if index_1 and index_2:
-        return len(index_1), len(index_2)
-    if index_1:
-        return 1, len(index_1)
-    flat_values = _parse_index_tokens(values_tokens)
-    return 1, len(flat_values)
-
-
-def _find_index_values(group: GroupNode, key: str) -> Optional[List[float]]:
-    for child in group.children:
-        if isinstance(child, AttributeNode) and child.key == key:
-            return _parse_index_tokens(child.raw_tokens)
-    return None
-
-
-def _parse_index_tokens(tokens: Iterable[Token]) -> List[float]:
-    values: List[float] = []
-    for token in tokens:
-        if token.type in {TokenType.COMMENT, TokenType.ESCAPED_NEWLINE}:
-            continue
-        if token.type in {TokenType.STRING, TokenType.IDENTIFIER}:
-            for part in token.value.split(","):
-                stripped = part.strip()
-                if stripped:
-                    values.append(float(stripped))
-    return values
 
 
 def _assert_scaled_matrix(

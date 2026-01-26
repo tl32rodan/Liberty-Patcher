@@ -16,10 +16,44 @@ class TestFormatter(unittest.TestCase):
             "cell(A) {\n"
             "  index_1 : 0.1, 0.2;\n"
             "  index_2 : 1, 2;\n"
-            "  values ( 1,2,3,4 );\n"
+            "  values ( \"1,2\" \\\n"
+            "           \"3,4\" );\n"
             "}\n"
         )
         result = Parser().parse(text)
         output = Formatter().dump(result.root)
-        self.assertIn('values ( "1, 2" \\', output)
-        self.assertIn('"3, 4");', output)
+        self.assertIn("values ( \\", output)
+        self.assertIn('    "1, 2", \\', output)
+        self.assertIn('    "3, 4" \\', output)
+        self.assertIn(");", output)
+
+    def test_formatter_keeps_single_row_values_inline(self) -> None:
+        text = (
+            "cell(A) {\n"
+            "  index_1 : 0.1, 0.2, 0.3;\n"
+            "  values ( 1,2,3 );\n"
+            "}\n"
+        )
+        result = Parser().parse(text)
+        output = Formatter().dump(result.root)
+        self.assertIn("values ( 1, 2, 3);", output)
+
+    def test_formatter_applies_array_formatting_without_key(self) -> None:
+        text = (
+            "cell(A) {\n"
+            "  foo ( 1,2 );\n"
+            "}\n"
+        )
+        result = Parser().parse(text)
+        output = Formatter().dump(result.root)
+        self.assertIn("foo ( 1, 2);", output)
+
+    def test_formatter_preserves_unquoted_arrays(self) -> None:
+        text = (
+            "cell(A) {\n"
+            "  rise_capacitance_range (0.276893, 0.440626);\n"
+            "}\n"
+        )
+        result = Parser().parse(text)
+        output = Formatter().dump(result.root)
+        self.assertIn("rise_capacitance_range ( 0.276893, 0.440626);", output)
