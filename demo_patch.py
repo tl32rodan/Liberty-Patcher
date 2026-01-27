@@ -1,29 +1,41 @@
+from __future__ import annotations
+
+import argparse
 import time
-from pathlib import Path
 
-import config_compiler
-from liberty_core import Formatter, Parser
-from patch_engine import PatchRunner
+import cli
 
-input_path = "examples/asap7sc6t_SIMPLE_SLVT_TT_nldm_211010.lib"
-config_path = "examples/patch_demo.yaml"
-output_path = "patched_output.lib"
+DEFAULT_INPUT_PATH = "examples/asap7sc6t_SIMPLE_SLVT_TT_nldm_211010.lib"
+DEFAULT_CONFIG_PATH = "examples/patch_demo.yaml"
+DEFAULT_OUTPUT_PATH = "patched_output.lib"
 
-print(f"Reading {input_path}...")
-start = time.time()
 
-text = Path(input_path).read_text(encoding="utf-8")
-parse_result = Parser().parse(text)
-print(f"Parsed in {time.time() - start:.2f}s")
+def main(
+    input_path: str = DEFAULT_INPUT_PATH,
+    config_path: str = DEFAULT_CONFIG_PATH,
+    output_path: str = DEFAULT_OUTPUT_PATH,
+    indent_size: int = 2,
+) -> int:
+    print(f"Reading {input_path}...")
+    start = time.time()
 
-print(f"Compiling {config_path}...")
-config_text = Path(config_path).read_text(encoding="utf-8")
-config = config_compiler.compile_config(config_text)
+    args = argparse.Namespace(
+        input=input_path,
+        config=config_path,
+        output=output_path,
+        description="demo patch",
+        indent_size=indent_size,
+        db="",
+        dump_parse=None,
+    )
 
-print("Patching...")
-runner = PatchRunner()
-runner.run(parse_result, config)
-output_text = Formatter(indent_size=2).dump(parse_result.root)
-Path(output_path).write_text(output_text, encoding="utf-8")
+    print("Patching with CLI...")
+    exit_code = cli._handle_patch(args)
 
-print(f"Done! Check {output_path}")
+    print(f"Completed in {time.time() - start:.2f}s")
+    print(f"Done! Check {output_path}")
+    return exit_code
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
