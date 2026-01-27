@@ -71,3 +71,12 @@ class TestFormatter(unittest.TestCase):
         result = Parser().parse(text)
         output = Formatter().dump(result.root)
         self.assertIn("rise_capacitance_range (0.276893, 0.440626);", output)
+
+    def test_formatter_adds_space_before_group_paren(self) -> None:
+        text = (
+            "timing () {\n"
+            "}\n"
+        )
+        result = Parser().parse(text)
+        output = Formatter().dump(result.root)
+        self.assertIn("timing () {", output)

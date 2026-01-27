@@ -29,7 +29,7 @@ class Formatter:
     def _format_group(self, node: GroupNode, indent: int) -> List[str]:
         lines: List[str] = []
         args = self._tokens_to_value(node.args_tokens)
-        lines.append(f"{self._indent(indent)}{node.name}({args}) {{")
+        lines.append(f"{self._indent(indent)}{node.name} ({args}) {{")
         for child in node.children:
             lines.extend(self._format_node(child, indent + 1))
         lines.append(f"{self._indent(indent)}}}")
