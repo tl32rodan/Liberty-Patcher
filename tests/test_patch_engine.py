@@ -4,6 +4,7 @@ import unittest
 
 from liberty_core import Lexer, Parser, TokenType
 from liberty_core.cst import AttributeNode
+from liberty_core.formatter import Formatter
 from patch_engine import (
     MatrixShapeError,
     PatchRunner,
@@ -95,6 +96,61 @@ class TestPatchEngine(unittest.TestCase):
         string_tokens = [token for token in foo_node.raw_tokens if token.type == TokenType.STRING]
         self.assertEqual(len(string_tokens), 2)
         self.assertNotIn(TokenType.ESCAPED_NEWLINE, [token.type for token in foo_node.raw_tokens])
+
+    def test_patch_runner_preserves_single_row_multiline_arrays(self) -> None:
+        text = (
+            "library(test) {\n"
+            "  cell(A) {\n"
+            "    values ( \\\n"
+            "      \"0,1\" \\\n"
+            "    );\n"
+            "  }\n"
+            "}\n"
+        )
+        parse_result = Parser().parse(text)
+        config = {
+            "modifications": [
+                {
+                    "scope": {"path": [{"group": "library"}, {"group": "cell", "name": "A"}]},
+                    "action": {"attribute": "values", "operation": "add", "mode": "broadcast", "value": 1.0},
+                }
+            ]
+        }
+        runner = PatchRunner()
+        runner.run(parse_result, config)
+        output = Formatter().dump(parse_result.root)
+        self.assertIn("values ( \\", output)
+        self.assertIn('      "1, 2" \\', output)
+        self.assertIn("    );", output)
+
+    def test_patch_runner_preserves_commas_for_unquoted_arrays(self) -> None:
+        text = "library(test) { cell(A) { foo (1, 2); } }"
+        parse_result = Parser().parse(text)
+        config = {
+            "modifications": [
+                {
+                    "scope": {"path": [{"group": "library"}, {"group": "cell", "name": "A"}]},
+                    "action": {"attribute": "foo", "operation": "add", "mode": "broadcast", "value": 0.1},
+                }
+            ]
+        }
+        runner = PatchRunner()
+        runner.run(parse_result, config)
+        groups = find_nodes_by_scope(
+            parse_result.root,
+            {"path": [{"group": "library"}, {"group": "cell", "name": "A"}]},
+        )
+        foo_node = None
+        for group in groups:
+            for child in group.children:
+                if isinstance(child, AttributeNode) and child.key == "foo":
+                    foo_node = child
+                    break
+        self.assertIsNotNone(foo_node)
+        token_types = [token.type for token in foo_node.raw_tokens]
+        self.assertIn(TokenType.COMMA, token_types)
+        output = Formatter().dump(parse_result.root)
+        self.assertIn("foo (1.1, 2.1);", output)
 
     def test_patch_runner_raises_when_scope_missing(self) -> None:
         text = "library(test) { cell(A) { foo (0.1, 0.2); } }"

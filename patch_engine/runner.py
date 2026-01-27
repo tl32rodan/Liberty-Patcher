@@ -9,7 +9,7 @@ from liberty_core.cst import AttributeNode, GroupNode, Token, TokenType
 from liberty_core.parser import ParseResult
 from provenance import ArtifactRecord, BatchOp, ProvenanceDB
 
-from .matrix import add_matrices, extract_array_layout, multiply_matrix, parse_array_tokens
+from .matrix import ArrayFormat, add_matrices, extract_array_format, multiply_matrix, parse_array_tokens
 from .scope import find_nodes_by_scope
 from .units import UnitExpectations, validate_units
 
@@ -77,10 +77,10 @@ class PatchRunner:
 
     def _apply_action(self, group: GroupNode, attribute: str, action: dict) -> None:
         for _, node in _iter_attribute_nodes(group, attribute):
-            layout = extract_array_layout(node.raw_tokens)
+            array_format = extract_array_format(node.raw_tokens)
             matrix = parse_array_tokens(node.raw_tokens)
             updated = _apply_operation(matrix, action)
-            node.raw_tokens = _matrix_to_tokens(updated, _array_uses_quotes(node.raw_tokens), layout)
+            node.raw_tokens = _matrix_to_tokens(updated, _array_uses_quotes(node.raw_tokens), array_format)
 
 
 def _apply_operation(matrix: List[List[float]], action: dict) -> List[List[float]]:
@@ -120,28 +120,35 @@ def _normalize_matrix(value: object) -> List[List[float]]:
 def _matrix_to_tokens(
     matrix: Iterable[Iterable[float]],
     quoted: bool,
-    layout: Optional[List[List[int]]] = None,
+    array_format: Optional[ArrayFormat] = None,
 ) -> List[Token]:
     tokens: List[Token] = []
-    row_count = 0
     matrix_list = [list(row) for row in matrix]
+    has_escaped_newline = array_format.has_escaped_newline if array_format else False
+    layout = array_format.layout if array_format else None
     for row_index, row in enumerate(matrix_list):
-        token_type = TokenType.STRING if quoted else TokenType.IDENTIFIER
-        row_layout = None
-        if layout is not None and row_index < len(layout):
-            row_layout = layout[row_index]
-        if row_layout and sum(row_layout) == len(row):
-            position = 0
-            for count in row_layout:
-                segment_values = ",".join(format(value, "g") for value in row[position : position + count])
-                tokens.append(Token(token_type, segment_values, 0, 0))
-                position += count
+        if quoted:
+            row_layout = None
+            if layout is not None and row_index < len(layout):
+                row_layout = layout[row_index]
+            if row_layout and sum(row_layout) == len(row):
+                position = 0
+                for count in row_layout:
+                    segment_values = ",".join(format(value, "g") for value in row[position : position + count])
+                    tokens.append(Token(TokenType.STRING, segment_values, 0, 0))
+                    position += count
+            else:
+                row_values = ",".join(format(value, "g") for value in row)
+                tokens.append(Token(TokenType.STRING, row_values, 0, 0))
         else:
-            row_values = ",".join(format(value, "g") for value in row)
-            tokens.append(Token(token_type, row_values, 0, 0))
-        row_count += 1
-        tokens.append(Token(TokenType.ESCAPED_NEWLINE, "\\\n", 0, 0))
-    if row_count > 0:
+            last_index = len(row) - 1
+            for value_index, value in enumerate(row):
+                tokens.append(Token(TokenType.IDENTIFIER, format(value, "g"), 0, 0))
+                if value_index < last_index:
+                    tokens.append(Token(TokenType.COMMA, ",", 0, 0))
+        if row_index < len(matrix_list) - 1 or has_escaped_newline:
+            tokens.append(Token(TokenType.ESCAPED_NEWLINE, "\\\n", 0, 0))
+    if tokens and tokens[-1].type == TokenType.ESCAPED_NEWLINE and not has_escaped_newline:
         tokens.pop()
     return tokens
 
