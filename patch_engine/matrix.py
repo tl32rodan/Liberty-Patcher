@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Iterable, List
 
 from liberty_core.cst import Token, TokenType
@@ -7,6 +8,12 @@ from liberty_core.cst import Token, TokenType
 
 class MatrixShapeError(ValueError):
     pass
+
+
+@dataclass(frozen=True)
+class ArrayFormat:
+    layout: List[List[int]]
+    has_escaped_newline: bool
 
 
 def parse_values_tokens(tokens: Iterable[Token], rows: int, cols: int) -> List[List[float]]:
@@ -45,7 +52,13 @@ def parse_array_tokens(tokens: Iterable[Token]) -> List[List[float]]:
     return rows
 
 
-def extract_array_layout(tokens: Iterable[Token]) -> List[List[int]]:
+def extract_array_format(tokens: Iterable[Token]) -> ArrayFormat:
+    layout = _extract_array_layout(tokens)
+    has_escaped_newline = any(token.type == TokenType.ESCAPED_NEWLINE for token in tokens)
+    return ArrayFormat(layout=layout, has_escaped_newline=has_escaped_newline)
+
+
+def _extract_array_layout(tokens: Iterable[Token]) -> List[List[int]]:
     rows: List[List[int]] = []
     current: List[int] = []
     for token in tokens:
