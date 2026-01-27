@@ -48,9 +48,12 @@ class Formatter:
     def _format_array_attribute(self, node: AttributeNode, indent: int) -> List[str]:
         rows = self._parse_array_matrix(node.raw_tokens)
         formatted_rows = self._format_matrix_rows(rows)
-        if len(formatted_rows) == 1:
+        has_escaped_newline = any(
+            token.type == TokenType.ESCAPED_NEWLINE for token in node.raw_tokens
+        )
+        if len(formatted_rows) == 1 and not has_escaped_newline:
             lines: List[str] = []
-            header = f"{self._indent(indent)}{node.key} ( {formatted_rows[0]}"
+            header = f"{self._indent(indent)}{node.key} ({formatted_rows[0]}"
             lines.append(header + ");")
             return lines
 

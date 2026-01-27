@@ -36,7 +36,21 @@ class TestFormatter(unittest.TestCase):
         )
         result = Parser().parse(text)
         output = Formatter().dump(result.root)
-        self.assertIn("values ( 1, 2, 3);", output)
+        self.assertIn("values (1, 2, 3);", output)
+
+    def test_formatter_keeps_single_row_values_multiline_with_newlines(self) -> None:
+        text = (
+            "cell(A) {\n"
+            "  values ( \\\n"
+            "    \"0, 1\" \\\n"
+            "  );\n"
+            "}\n"
+        )
+        result = Parser().parse(text)
+        output = Formatter().dump(result.root)
+        self.assertIn("values ( \\", output)
+        self.assertIn('    "0, 1" \\', output)
+        self.assertIn(");", output)
 
     def test_formatter_applies_array_formatting_without_key(self) -> None:
         text = (
@@ -46,7 +60,7 @@ class TestFormatter(unittest.TestCase):
         )
         result = Parser().parse(text)
         output = Formatter().dump(result.root)
-        self.assertIn("foo ( 1, 2);", output)
+        self.assertIn("foo (1, 2);", output)
 
     def test_formatter_preserves_unquoted_arrays(self) -> None:
         text = (
@@ -56,4 +70,4 @@ class TestFormatter(unittest.TestCase):
         )
         result = Parser().parse(text)
         output = Formatter().dump(result.root)
-        self.assertIn("rise_capacitance_range ( 0.276893, 0.440626);", output)
+        self.assertIn("rise_capacitance_range (0.276893, 0.440626);", output)
