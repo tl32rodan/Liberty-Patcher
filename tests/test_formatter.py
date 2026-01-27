@@ -8,6 +8,7 @@ class TestFormatter(unittest.TestCase):
         text = 'cell(A) { area : "5"; size : 7; }'
         result = Parser().parse(text)
         output = Formatter().dump(result.root)
+        self.assertIn("cell (A) {", output)
         self.assertIn('area : "5";', output)
         self.assertIn("size : 7;", output)
 

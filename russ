@@ -1,0 +1,38 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import compileall
+import sys
+from pathlib import Path
+
+
+def _compile_target(path: Path) -> bool:
+    if path.is_dir():
+        return compileall.compile_dir(str(path), quiet=1)
+    if path.is_file():
+        return compileall.compile_file(str(path), quiet=1)
+    return False
+
+
+def main() -> int:
+    root = Path(__file__).resolve().parent
+    targets = [
+        root / "liberty_core",
+        root / "patch_engine",
+        root / "provenance",
+        root / "cli.py",
+        root / "config_compiler.py",
+        root / "demo_format.py",
+        root / "demo_patch.py",
+    ]
+    failures = [str(target) for target in targets if not _compile_target(target)]
+    if failures:
+        sys.stderr.write("russ failed to compile targets:\n")
+        for failure in failures:
+            sys.stderr.write(f"- {failure}\n")
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
