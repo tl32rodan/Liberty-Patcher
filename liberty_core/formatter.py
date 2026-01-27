@@ -48,25 +48,9 @@ class Formatter:
     def _format_array_attribute(self, node: AttributeNode, indent: int) -> List[str]:
         rows = self._parse_array_matrix(node.raw_tokens)
         formatted_rows = self._format_matrix_rows(rows)
-        has_escaped_newline = any(
-            token.type == TokenType.ESCAPED_NEWLINE for token in node.raw_tokens
-        )
-        if len(formatted_rows) == 1 and not has_escaped_newline:
-            lines: List[str] = []
-            header = f"{self._indent(indent)}{node.key} ({formatted_rows[0]}"
-            lines.append(header + ");")
-            return lines
-
-        lines = []
-        header = f"{self._indent(indent)}{node.key} ( \\"
-        lines.append(header)
-        continuation_indent = f"{self._indent(indent + 1)}"
-        last_index = len(formatted_rows) - 1
-        for index, row in enumerate(formatted_rows):
-            comma = "," if index < last_index else ""
-            lines.append(f"{continuation_indent}{row}{comma} \\")
-        lines.append(f"{self._indent(indent)});")
-        return lines
+        if self._should_inline_array(formatted_rows, node.raw_tokens):
+            return self._format_inline_array(node.key, formatted_rows[0], indent)
+        return self._format_multiline_array(node.key, formatted_rows, indent)
 
     def _parse_array_matrix(self, tokens: List[Token]) -> List["ArrayRow"]:
         rows: List[ArrayRow] = []
@@ -100,16 +84,37 @@ class Formatter:
         return ArrayRow(values=values, quoted=has_string)
 
     def _format_matrix_rows(self, rows: List["ArrayRow"]) -> List[str]:
-        formatted = [[format(value, self.float_format) for value in row.values] for row in rows]
-        col_widths = [max(len(row[col]) for row in formatted) for col in range(len(formatted[0]))]
         lines: List[str] = []
-        for row_index, row in enumerate(formatted):
-            cells = [row[col].rjust(col_widths[col]) for col in range(len(row))]
-            line = ", ".join(cells)
-            if rows[row_index].quoted:
+        for row in rows:
+            formatted = [format(value, self.float_format) for value in row.values]
+            line = ", ".join(formatted)
+            if row.quoted:
                 lines.append(f"\"{line}\"")
             else:
                 lines.append(line)
+        return lines
+
+    def _should_inline_array(self, formatted_rows: List[str], tokens: List[Token]) -> bool:
+        if len(formatted_rows) != 1:
+            return False
+        return not self._has_escaped_newline(tokens)
+
+    def _has_escaped_newline(self, tokens: Iterable[Token]) -> bool:
+        return any(token.type == TokenType.ESCAPED_NEWLINE for token in tokens)
+
+    def _format_inline_array(self, key: str, row: str, indent: int) -> List[str]:
+        line = f"{self._indent(indent)}{key} ({row});"
+        return [line]
+
+    def _format_multiline_array(self, key: str, rows: List[str], indent: int) -> List[str]:
+        lines = []
+        lines.append(f"{self._indent(indent)}{key} ( \\")
+        continuation_indent = self._indent(indent + 1)
+        last_index = len(rows) - 1
+        for index, row in enumerate(rows):
+            comma = "," if index < last_index else ""
+            lines.append(f"{continuation_indent}{row}{comma} \\")
+        lines.append(f"{self._indent(indent)});")
         return lines
 
     def _is_array_tokens(self, tokens: Iterable[Token]) -> bool:

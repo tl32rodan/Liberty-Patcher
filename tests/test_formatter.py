@@ -28,6 +28,20 @@ class TestFormatter(unittest.TestCase):
         self.assertIn('    "3, 4" \\', output)
         self.assertIn(");", output)
 
+    def test_formatter_skips_array_alignment_padding(self) -> None:
+        text = (
+            "cell(A) {\n"
+            "  index_1 : 0.1, 0.2;\n"
+            "  index_2 : 1, 2;\n"
+            "  values ( \"1,20\" \\\n"
+            "           \"300,4\" );\n"
+            "}\n"
+        )
+        result = Parser().parse(text)
+        output = Formatter().dump(result.root)
+        self.assertIn('    "1, 20", \\', output)
+        self.assertIn('    "300, 4" \\', output)
+
     def test_formatter_keeps_single_row_values_inline(self) -> None:
         text = (
             "cell(A) {\n"
