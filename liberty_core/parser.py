@@ -78,17 +78,29 @@ class Parser:
     def _parse_attribute(self) -> AttributeNode:
         key_token = self._expect(TokenType.IDENTIFIER)
         self._expect(TokenType.COLON)
-        raw_tokens = self._collect_until(TokenType.SEMI)
-        self._expect(TokenType.SEMI)
+        raw_tokens = self._collect_attribute_tokens()
+        self._consume_optional_semicolon(last_token=raw_tokens[-1] if raw_tokens else key_token)
         return self._build_attribute_node(key_token.value, raw_tokens, use_parens=False)
 
     def _parse_parenthesized_attribute(self) -> AttributeNode:
         key_token = self._expect(TokenType.IDENTIFIER)
         self._expect(TokenType.GROUP_START)
         raw_tokens = self._collect_until(TokenType.GROUP_END)
-        self._expect(TokenType.GROUP_END)
-        self._expect(TokenType.SEMI)
+        group_end_token = self._expect(TokenType.GROUP_END)
+        self._consume_optional_semicolon(last_token=group_end_token)
         return self._build_attribute_node(key_token.value, raw_tokens, use_parens=True)
+
+    def _collect_attribute_tokens(self) -> List[Token]:
+        collected: List[Token] = []
+        while not self._check(TokenType.SEMI):
+            token = self._peek()
+            if token is None:
+                return collected
+            if collected and self._is_line_terminated(collected[-1], token):
+                return collected
+            collected.append(token)
+            self._advance()
+        return collected
 
     def _collect_until(self, token_type: TokenType) -> List[Token]:
         collected: List[Token] = []
@@ -145,8 +157,32 @@ class Parser:
             return False
         next_index = group_end_index + 1
         if next_index >= len(self.tokens):
+            return True
+        next_token = self.tokens[next_index]
+        if next_token.type == TokenType.SEMI:
+            return True
+        if next_token.type == TokenType.BLOCK_START:
             return False
-        return self.tokens[next_index].type == TokenType.SEMI
+        if next_token.type == TokenType.BLOCK_END:
+            return True
+        group_end_token = self.tokens[group_end_index]
+        return next_token.line > group_end_token.line
+
+    def _is_line_terminated(self, last_token: Token, next_token: Token) -> bool:
+        return next_token.line > last_token.line and last_token.type != TokenType.ESCAPED_NEWLINE
+
+    def _consume_optional_semicolon(self, last_token: Token) -> None:
+        if self._check(TokenType.SEMI):
+            self._advance()
+            return
+        next_token = self._peek()
+        if next_token is None:
+            return
+        if next_token.type == TokenType.BLOCK_END:
+            return
+        if self._is_line_terminated(last_token, next_token):
+            return
+        raise ParserError(f"Expected {TokenType.SEMI} at {next_token.line}:{next_token.column}")
 
     def _expect(self, token_type: TokenType) -> Token:
         token = self._peek()
