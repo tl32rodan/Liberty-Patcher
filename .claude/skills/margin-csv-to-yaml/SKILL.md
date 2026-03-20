@@ -1,5 +1,5 @@
 ---
-name: csv-to-yaml
+name: margin-csv-to-yaml
 description: Generate a Python script that converts a margin CSV file into a Liberty-Patcher YAML config. Use when a developer needs to create or update a CSV-to-YAML converter for margin data.
 argument-hint: "[margin-type]"
 disable-model-invocation: true
