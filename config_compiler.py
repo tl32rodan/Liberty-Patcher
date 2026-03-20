@@ -69,22 +69,39 @@ def _compile_scope(scope: Any) -> dict:
     return compiled_scope
 
 
+_SELECTOR_META_KEYS = frozenset({"group", "name", "args", "attributes", "attrs"})
+
+
 def _compile_path_selector(selector: Any) -> dict:
     if isinstance(selector, str):
         return {"group": selector}
     if not isinstance(selector, dict):
         raise ConfigCompilerError("Path selector must be a mapping or string.")
+    # Legacy format: explicit "group" key present
     if "group" in selector:
         return _normalize_attributes(dict(selector))
-    if len(selector) == 1:
-        key, value = next(iter(selector.items()))
-        compiled: Dict[str, Any] = {"group": key}
+    # Unified format: any key not in meta-keys is the group type name
+    group_keys = [k for k in selector if k not in _SELECTOR_META_KEYS]
+    if len(group_keys) == 1:
+        group_type = group_keys[0]
+        value = selector[group_type]
+        compiled: Dict[str, Any] = {"group": group_type}
+        for k in selector:
+            if k != group_type:
+                compiled[k] = selector[k]
         if isinstance(value, dict):
             compiled.update(value)
         elif value is not None:
             compiled["name"] = value
         return _normalize_attributes(compiled)
-    return _normalize_attributes(dict(selector))
+    if len(group_keys) == 0:
+        raise ConfigCompilerError(
+            "Path selector must include a group type key or explicit 'group' key."
+        )
+    raise ConfigCompilerError(
+        f"Path selector has multiple group type keys: {group_keys}. "
+        "Use exactly one group type key per selector."
+    )
 
 
 def _normalize_attributes(selector: Dict[str, Any]) -> Dict[str, Any]:

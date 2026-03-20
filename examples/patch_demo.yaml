@@ -5,7 +5,7 @@ modifications:
         - library: "*"
         - cell: "AND*"
         - pin: "*"
-        - group: "timing"
+        - timing:
     action:
       operation: add
       mode: broadcast
@@ -16,8 +16,8 @@ modifications:
         - library: "*"
         - cell: "AND3x1_ASAP7_6t_SL"
         - pin: "A"
-        - group: "internal_power"
-        - group: "rise_power"
+        - internal_power:
+        - rise_power:
     action:
       operation: add
       mode: broadcast
@@ -28,11 +28,11 @@ modifications:
         - library: "*"
         - cell: "AND3x1_ASAP7_6t_SL"
         - pin: "A"
-        - group: "internal_power"
-          attributes:
-            when: "(B * !C * !Y)"
-            related_pg_pin: "VDD"
-        - group: "fall_power"
+        - internal_power:
+            attributes:
+              when: "(B * !C * !Y)"
+              related_pg_pin: "VDD"
+        - fall_power:
     action:
       operation: add
       mode: broadcast
@@ -43,10 +43,10 @@ modifications:
         - library: "*"
         - cell: "AND2x2_ASAP7_6t_SL"
         - pin: "Y"
-        - group: "timing"
-          attributes:
-            related_pin: "A"
-        - group: "cell_fall"
+        - timing:
+            attributes:
+              related_pin: "A"
+        - cell_fall:
     action:
       operation: add
       mode: matrix
