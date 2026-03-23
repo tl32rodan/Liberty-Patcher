@@ -1,52 +1,29 @@
 modifications:
-  # 2D add (timing values)
-  - scope:
-      path:
-        - library: "*"
-        - cell: "AND*"
-        - pin: "*"
-        - timing:
-    action:
-      operation: add
-      mode: broadcast
-      value: 0.05
-  # 1D add (internal_power rise_power values)
+  # Case 1: internal_power (Type 2) + WHERE (Type 3) + fall_power (Type 1)
   - scope:
       path:
         - library: "*"
         - cell: "AND3x1_ASAP7_6t_SL"
         - pin: "A"
         - internal_power:
-        - rise_power:
-    action:
-      operation: add
-      mode: broadcast
-      value: -0.01
-  # Conditional internal_power fall_power example
-  - scope:
-      path:
-        - library: "*"
-        - cell: "AND3x1_ASAP7_6t_SL"
-        - pin: "A"
-        - internal_power:
-            attributes:
+            WHERE:
               when: "(B * !C * !Y)"
               related_pg_pin: "VDD"
-        - fall_power:
+        - fall_power: "passive_power_template_7x1_x1"
     action:
       operation: add
       mode: broadcast
       value: 0.01
-  # Element-wise add (timing cell_fall values with related_pin filter)
+  # Case 2: timing (Type 2) + WHERE (Type 3) + cell_fall (Type 1) + matrix
   - scope:
       path:
         - library: "*"
         - cell: "AND2x2_ASAP7_6t_SL"
         - pin: "Y"
         - timing:
-            attributes:
+            WHERE:
               related_pin: "A"
-        - cell_fall:
+        - cell_fall: "delay_template_7x7_x1"
     action:
       operation: add
       mode: matrix

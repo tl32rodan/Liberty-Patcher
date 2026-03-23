@@ -69,7 +69,7 @@ def _compile_scope(scope: Any) -> dict:
     return compiled_scope
 
 
-_SELECTOR_META_KEYS = frozenset({"group", "name", "args", "attributes", "attrs"})
+_SELECTOR_META_KEYS = frozenset({"name", "args", "WHERE"})
 
 
 def _compile_path_selector(selector: Any) -> dict:
@@ -77,10 +77,7 @@ def _compile_path_selector(selector: Any) -> dict:
         return {"group": selector}
     if not isinstance(selector, dict):
         raise ConfigCompilerError("Path selector must be a mapping or string.")
-    # Legacy format: explicit "group" key present
-    if "group" in selector:
-        return _normalize_attributes(dict(selector))
-    # Unified format: any key not in meta-keys is the group type name
+    # Find the group type key: any key not in meta-keys is the group type name
     group_keys = [k for k in selector if k not in _SELECTOR_META_KEYS]
     if len(group_keys) == 1:
         group_type = group_keys[0]
@@ -93,10 +90,10 @@ def _compile_path_selector(selector: Any) -> dict:
             compiled.update(value)
         elif value is not None:
             compiled["name"] = value
-        return _normalize_attributes(compiled)
+        return _normalize_where(compiled)
     if len(group_keys) == 0:
         raise ConfigCompilerError(
-            "Path selector must include a group type key or explicit 'group' key."
+            "Path selector must include a group type key."
         )
     raise ConfigCompilerError(
         f"Path selector has multiple group type keys: {group_keys}. "
@@ -104,12 +101,10 @@ def _compile_path_selector(selector: Any) -> dict:
     )
 
 
-def _normalize_attributes(selector: Dict[str, Any]) -> Dict[str, Any]:
-    if "attrs" in selector and "attributes" in selector:
-        raise ConfigCompilerError("Selector cannot include both attrs and attributes.")
-    if "attrs" in selector:
+def _normalize_where(selector: Dict[str, Any]) -> Dict[str, Any]:
+    if "WHERE" in selector:
         selector = dict(selector)
-        selector["attributes"] = selector.pop("attrs")
+        selector["where"] = selector.pop("WHERE")
     return selector
 
 

@@ -79,8 +79,8 @@ def _matches_selector(node: GroupNode, selector: dict) -> bool:
     args_pattern = selector.get("args")
     if args_pattern and not _group_args_match(node, args_pattern):
         return False
-    attributes = selector.get("attributes")
-    if attributes and not _matches_attributes(node, attributes):
+    where = selector.get("where")
+    if where and not _matches_where(node, where):
         return False
     return True
 
@@ -98,7 +98,7 @@ def _group_args_match(node: GroupNode, patterns: Union[str, List[str]]) -> bool:
     return _match_pattern(value, patterns)
 
 
-def _matches_attributes(group: GroupNode, filters: dict) -> bool:
+def _matches_where(group: GroupNode, filters: dict) -> bool:
     for key, value in filters.items():
         if not group_has_attribute(group, key, value):
             return False
@@ -126,8 +126,8 @@ def _describe_selector_failure(selector: dict) -> str:
         parts.append(f"name={selector['name']}")
     if "args" in selector:
         parts.append(f"args={selector['args']}")
-    if "attributes" in selector:
-        parts.append(f"attributes={selector['attributes']}")
+    if "where" in selector:
+        parts.append(f"where={selector['where']}")
     if parts:
         return f"No child groups matched selector filters: {', '.join(parts)}"
     return "No child groups matched selector."
