@@ -82,7 +82,7 @@ class TestPatchRunnerE2E(unittest.TestCase):
                             {"group": "pin", "name": "A"},
                             {
                                 "group": "internal_power",
-                                "attributes": {"when": "(B * !C * !Y)", "related_pg_pin": "VDD"},
+                                "where": {"when": "(B * !C * !Y)", "related_pg_pin": "VDD"},
                             },
                             {"group": "fall_power"},
                         ]
@@ -174,7 +174,7 @@ def _extract_internal_power_fall_matrix(
                 {"group": "library"},
                 {"group": "cell", "name": cell_name},
                 {"group": "pin", "name": pin_name},
-                {"group": "internal_power", "attributes": {"when": when, "related_pg_pin": related_pg_pin}},
+                {"group": "internal_power", "where": {"when": when, "related_pg_pin": related_pg_pin}},
                 {"group": "fall_power"},
             ]
         },

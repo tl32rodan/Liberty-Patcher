@@ -31,7 +31,7 @@ library (demo) {
                 {"group": "pin", "args": [r"A"]},
                 {
                     "group": "internal_power",
-                    "attributes": {"when": [r"\(B \* !C \* !Y\)"], "related_pg_pin": [r"VDD"]},
+                    "where": {"when": [r"\(B \* !C \* !Y\)"], "related_pg_pin": [r"VDD"]},
                 },
             ]
         }
@@ -49,7 +49,7 @@ library (demo) {
                 {"group": "library"},
                 {"group": "cell", "name": "AND3x1_ASAP7_6t_SL"},
                 {"group": "pin", "name": "A"},
-                {"group": "internal_power", "attributes": {"when": ["NO_MATCH"]}},
+                {"group": "internal_power", "where": {"when": ["NO_MATCH"]}},
             ]
         }
         with self.assertRaises(ScopeMatchError) as context:

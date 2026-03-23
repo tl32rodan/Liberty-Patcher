@@ -13,8 +13,7 @@ class TestCliConfigLoading(unittest.TestCase):
 modifications:
   - scope:
       path:
-        - group: library
-          name: lib
+        - library: "lib"
         - cell: "AND*"
     action:
       operation: multiply

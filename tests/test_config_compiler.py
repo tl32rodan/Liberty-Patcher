@@ -8,14 +8,14 @@ import config_compiler
 
 @unittest.skipIf(config_compiler.yaml is None, "PyYAML is required for YAML tests.")
 class TestConfigCompiler(unittest.TestCase):
-    def test_compile_config_expands_shorthand(self) -> None:
+    def test_type1_shorthand(self) -> None:
         yaml_text = """
 modifications:
   - scope:
       path:
         - cell: "AND*"
         - timing:
-            attributes:
+            WHERE:
               related_pin: "A"
     action:
       operation: multiply
@@ -27,15 +27,15 @@ modifications:
         self.assertEqual(path[0]["group"], "cell")
         self.assertEqual(path[0]["name"], "AND*")
         self.assertEqual(path[1]["group"], "timing")
-        self.assertEqual(path[1]["attributes"], {"related_pin": "A"})
+        self.assertEqual(path[1]["where"], {"related_pin": "A"})
 
-    def test_compile_config_supports_attrs_alias(self) -> None:
+    def test_where_keyword(self) -> None:
         yaml_text = """
 modifications:
   - scope:
       path:
-        - group: timing
-          attrs:
+        - timing:
+          WHERE:
             timing_type: "combinational"
     action:
       operation: add
@@ -44,19 +44,19 @@ modifications:
 """
         compiled = config_compiler.compile_config(yaml_text)
         selector = compiled["modifications"][0]["scope"]["path"][0]
-        self.assertEqual(selector["attributes"], {"timing_type": "combinational"})
+        self.assertEqual(selector["where"], {"timing_type": "combinational"})
 
-    def test_compile_config_keeps_list_selectors(self) -> None:
+    def test_list_selectors(self) -> None:
         yaml_text = """
 modifications:
   - scope:
       path:
-        - group: cell
+        - cell:
           name:
             - "AND.*"
             - "OR.*"
-        - group: timing
-          attributes:
+        - timing:
+          WHERE:
             related_pin:
               - "A"
               - "B"
@@ -69,15 +69,102 @@ modifications:
         selector = compiled["modifications"][0]["scope"]["path"][0]
         self.assertEqual(selector["name"], ["AND.*", "OR.*"])
         attr_selector = compiled["modifications"][0]["scope"]["path"][1]
-        self.assertEqual(attr_selector["attributes"]["related_pin"], ["A", "B"])
+        self.assertEqual(attr_selector["where"]["related_pin"], ["A", "B"])
+
+    def test_type1_with_arg(self) -> None:
+        yaml_text = """
+modifications:
+  - scope:
+      path:
+        - cell_rise: "delay_template_7x7"
+    action:
+      operation: add
+      mode: broadcast
+      value: 0.01
+"""
+        compiled = config_compiler.compile_config(yaml_text)
+        selector = compiled["modifications"][0]["scope"]["path"][0]
+        self.assertEqual(selector["group"], "cell_rise")
+        self.assertEqual(selector["name"], "delay_template_7x7")
+
+    def test_type2_null_value(self) -> None:
+        yaml_text = """
+modifications:
+  - scope:
+      path:
+        - timing:
+    action:
+      operation: add
+      mode: broadcast
+      value: 0.01
+"""
+        compiled = config_compiler.compile_config(yaml_text)
+        selector = compiled["modifications"][0]["scope"]["path"][0]
+        self.assertEqual(selector["group"], "timing")
+        self.assertNotIn("name", selector)
+
+    def test_multi_key_with_where(self) -> None:
+        yaml_text = """
+modifications:
+  - scope:
+      path:
+        - timing:
+          WHERE:
+            related_pin: "A"
+    action:
+      operation: add
+      mode: broadcast
+      value: 0.01
+"""
+        compiled = config_compiler.compile_config(yaml_text)
+        selector = compiled["modifications"][0]["scope"]["path"][0]
+        self.assertEqual(selector["group"], "timing")
+        self.assertEqual(selector["where"], {"related_pin": "A"})
+
+    def test_type1_with_name_and_where(self) -> None:
+        compiled = config_compiler.compile_config_data({
+            "modifications": [{
+                "scope": {
+                    "path": [{"cell_rise": "delay_*", "WHERE": {"index_1": "5"}}]
+                },
+                "action": {"operation": "add", "mode": "broadcast", "value": 0.01},
+            }]
+        })
+        selector = compiled["modifications"][0]["scope"]["path"][0]
+        self.assertEqual(selector["group"], "cell_rise")
+        self.assertEqual(selector["name"], "delay_*")
+        self.assertEqual(selector["where"], {"index_1": "5"})
+
+    def test_error_multiple_group_type_keys(self) -> None:
+        with self.assertRaises(config_compiler.ConfigCompilerError) as ctx:
+            config_compiler.compile_config_data({
+                "modifications": [{
+                    "scope": {
+                        "path": [{"cell": "AND*", "timing": None}]
+                    },
+                    "action": {"operation": "add", "mode": "broadcast", "value": 0.01},
+                }]
+            })
+        self.assertIn("multiple group type keys", str(ctx.exception))
+
+    def test_error_no_group_type_key(self) -> None:
+        with self.assertRaises(config_compiler.ConfigCompilerError) as ctx:
+            config_compiler.compile_config_data({
+                "modifications": [{
+                    "scope": {
+                        "path": [{"name": "foo", "WHERE": {}}]
+                    },
+                    "action": {"operation": "add", "mode": "broadcast", "value": 0.01},
+                }]
+            })
+        self.assertIn("group type key", str(ctx.exception))
 
     def test_compile_config_exports_json(self) -> None:
         yaml_text = """
 modifications:
   - scope:
       path:
-        - group: cell
-          name: "AND*"
+        - cell: "AND*"
     action:
       operation: add
       mode: broadcast
